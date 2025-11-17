@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from kafka import KafkaConsumer
+import matplotlib.pyplot as plt
 
 from config import TOPIC, BOOTSTRAP_SERVERS, GROUP_ID
 
@@ -22,12 +23,48 @@ def crear_consumer():
     return consumer
 
 
+def setup_plot():
+    """
+    Configura la figura de matplotlib para graficar temperatura y humedad.
+    Eje X: número de muestra (1, 2, 3, ...)
+    """
+    plt.ion()  # modo interactivo
+    fig, ax = plt.subplots()
+    line_temp, = ax.plot([], [], label="Temperatura (°C)")
+    line_hum, = ax.plot([], [], label="Humedad (%)")
+
+    ax.set_xlabel("Muestra")
+    ax.set_ylabel("Valor")
+    ax.set_title("Telemetría Estación Meteorológica (Kafka)")
+    ax.legend()
+    fig.tight_layout()
+
+    return fig, ax, line_temp, line_hum
+
+
+def actualizar_plot(ax, line_temp, line_hum, temps, hums):
+    """
+    Actualiza las curvas en la gráfica con los datos acumulados.
+    """
+    x = list(range(1, len(temps) + 1))
+
+    line_temp.set_data(x, temps)
+    line_hum.set_data(x, hums)
+
+    ax.relim()          # recalcula límites
+    ax.autoscale_view() # ajusta vista a los nuevos datos
+
+    plt.draw()
+    plt.pause(0.01)     # pequeño delay para refrescar
+
+
 def run_consumer():
     consumer = crear_consumer()
+    fig, ax, line_temp, line_hum = setup_plot()
+
     print(f"Escuchando topic = {TOPIC} en {BOOTSTRAP_SERVERS}")
     print("Esperando mensajes... Ctrl+C para detener.\n")
 
-    # Listas para ir acumulando datos (las usaremos luego para graficar)
     tiempos = []
     temps = []
     hums = []
@@ -35,9 +72,8 @@ def run_consumer():
 
     try:
         for msg in consumer:
-            payload = msg.value  # ya es un dict gracias al deserializer
+            payload = msg.value  # dict
 
-            # Extraer campos
             temp = payload.get("temperatura")
             hum = payload.get("humedad")
             viento = payload.get("direccion_viento")
@@ -53,17 +89,20 @@ def run_consumer():
                 f"[{t}] Recibido -> temp={temp} °C, "
                 f"humedad={hum} %, viento={viento}"
             )
-
-            # Solo para ver cuántos datos llevamos acumulados
             print(
                 f"  Total muestras: {len(temps)} "
-                f"(temp), {len(hums)} (hum), {len(vientos)} (viento)\n"
+                f"(temp/hum), {len(vientos)} (viento)\n"
             )
+
+            # Actualizar gráfica
+            actualizar_plot(ax, line_temp, line_hum, temps, hums)
 
     except KeyboardInterrupt:
         print("\nConsumer interrumpido por el usuario.")
     finally:
         consumer.close()
+        plt.ioff()
+        plt.show()  # deja la última gráfica fija
         print("Consumer cerrado.")
 
 
