@@ -32,7 +32,7 @@ def run_producer_compacto():
             # 1) Generar medición "normal" como dict
             data = generar_medicion()
 
-            # 2) Codificar en 3 bytes usando nuestro codec
+            # 2) Codificar en 3 bytes usando el codec
             payload = encode_medicion(data)
 
             # 3) Enviar a Kafka como valor binario
