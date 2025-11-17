@@ -1,8 +1,8 @@
-# producer_sensor.py
 import random
 import json
 import time
 
+from kafka import KafkaProducer  
 from config import TOPIC, BOOTSTRAP_SERVERS
 
 # Parámetros "realistas" para las distribuciones
@@ -48,11 +48,51 @@ def generar_medicion():
     return medicion
 
 
+def crear_producer():
+    """
+    Crea e inicializa un KafkaProducer que:
+    - Se conecta al broker indicado en BOOTSTRAP_SERVERS.
+    - Serializa el value como JSON codificado en UTF-8.
+    - Serializa la key como string UTF-8.
+    """
+    producer = KafkaProducer(
+        bootstrap_servers=BOOTSTRAP_SERVERS,
+        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        key_serializer=lambda k: k.encode("utf-8"),
+    )
+    return producer
+
+
+def run_producer():
+    producer = crear_producer()
+    print(f"Conectado a Kafka en {BOOTSTRAP_SERVERS}, topic = {TOPIC}")
+    print("Enviando mediciones cada 15–30 segundos. Ctrl+C para detener.\n")
+
+    try:
+        while True:
+            data = generar_medicion()
+
+            # Enviar medición al topic de Kafka
+            producer.send(
+                TOPIC,
+                key="sensor1",   # identifica al sensor (por si hubiera varios)
+                value=data,      # se serializa como JSON
+            )
+            producer.flush()  # aseguramos que salga del buffer
+
+            print("Enviado:", json.dumps(data, ensure_ascii=False))
+
+            # Espera aleatoria entre 15 y 30 segundos
+            delay = random.randint(15, 30)
+            print(f"Siguiente medición en {delay} segundos...\n")
+            time.sleep(delay)
+
+    except KeyboardInterrupt:
+        print("\nProducer interrumpido por el usuario.")
+    finally:
+        producer.close()
+        print("Producer cerrado.")
+
+
 if __name__ == "__main__":
-    # Prueba rápida del simulador: imprimir algunas lecturas cada segundo
-    print("Probando simulador de sensores (sin Kafka todavía)...\n")
-    for i in range(5):
-        data = generar_medicion()
-        # Mostrar también en formato JSON como se enviaría después
-        print(f"Medición {i+1}:", json.dumps(data, ensure_ascii=False))
-        time.sleep(1)
+    run_producer()
